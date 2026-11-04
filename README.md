@@ -13,6 +13,10 @@ contract library, `lib/slidekit.typ`.
 
 ## Install
 
+Prebuilt binaries for Windows, Linux and macOS are on the
+[releases page](https://github.com/gamersi/slidekit/releases): unpack and put `slidekit`
+(`slidekit.exe`) somewhere on your `PATH`, or run it from the deck folder. Or build it yourself:
+
 ```sh
 cargo install --git https://github.com/gamersi/slidekit
 ```
