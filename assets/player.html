@@ -101,7 +101,10 @@ const fmt = s => { s = Math.max(0, Math.round(s)); const m = Math.floor(s / 60);
 const clock = ms => { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const fmtSigned = s => (s < 0 ? '−' : '+') + fmt(Math.abs(s));
 document.documentElement.style.setProperty('--aspect', DECK.aspect);
-SLIDES.forEach(s => { const i = new Image(); i.src = s.img; });
+// Keep every slide image alive so the browser doesn't drop it from its cache,
+// and decode the neighbours ahead of time so stepping never shows an empty frame.
+const cache = SLIDES.map(s => { const i = new Image(); i.decoding = 'async'; i.src = s.img; return i; });
+const warm = n => [n + 1, n + 2, n - 1].forEach(i => cache[i]?.decode().catch(() => {}));
 
 /* shared state: owned by the audience window, mirrored to the presenter window */
 let cur = 0, start = null, slideStart = Date.now();
@@ -113,6 +116,7 @@ const loadTimers = () => { try { const t = JSON.parse(sessionStorage.getItem('sl
 
 // audience view
 const stage = $('stage'), hud = $('hud'), help = $('help'), mini = $('mini');
+let shown = 0;
 function show(n) {
   if (!SLIDES.length) return;
   n = Math.max(0, Math.min(SLIDES.length - 1, n));
@@ -124,18 +128,22 @@ function show(n) {
   cur = n;
   saveTimers();
   const s = SLIDES[cur];
-  stage.innerHTML = '';
   const img = document.createElement('img');
   img.className = 'slide'; img.src = s.img; img.alt = s.title || ('Slide ' + (cur + 1));
-  stage.appendChild(img);
+  const parts = [img];
   s.videos.forEach(v => {
     const d = document.createElement('div');
     d.className = 'hot';
     Object.assign(d.style, { left: v.l + '%', top: v.t + '%', width: v.w + '%', height: v.h + '%' });
     d.title = 'Play video';
     d.onclick = e => { e.stopPropagation(); play(d, v); };
-    stage.appendChild(d);
+    parts.push(d);
   });
+  // swap only once the new image is decoded; the old slide stays up until then
+  const token = ++shown;
+  const swap = () => { if (token === shown) stage.replaceChildren(...parts); };
+  img.decode().then(swap, swap);
+  warm(cur);
   hud.textContent = (cur + 1) + ' / ' + SLIDES.length + (s.title ? ' · ' + s.title : '');
   try { history.replaceState(null, '', location.search + '#' + (cur + 1)); } catch (e) {}
   send({ type: 'state', cur, start, slideStart });
@@ -265,9 +273,11 @@ if (PRESENTER) {
   setInterval(tickMini, 1000);
   // ?debug: outline video areas and start the first one muted (for automated checks)
   if (new URLSearchParams(location.search).has('debug')) {
-    document.querySelectorAll('.hot').forEach(d => d.style.outline = '4px solid lime');
-    const d = stage.querySelector('.hot');
-    if (d) { d.click(); const v = d.querySelector('video'); v.muted = true; }
+    cache[cur]?.decode().catch(() => {}).then(() => {
+      document.querySelectorAll('.hot').forEach(d => d.style.outline = '4px solid lime');
+      const d = stage.querySelector('.hot');
+      if (d) { d.click(); d.querySelector('video').muted = true; }
+    });
   }
 }
 
