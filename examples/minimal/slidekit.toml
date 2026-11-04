@@ -1,0 +1,15 @@
+[deck]
+entry = "slides.typ"
+title = "slidekit minimal example"
+# root = "."              # typst project root (may be a parent dir)
+# fonts = ["fonts"]       # extra font directories
+# system-fonts = false    # also use installed fonts
+# inputs = { }            # extra sys.inputs
+
+[output]
+dir = "dist"
+# pdf = "slides.pdf"      # "" disables
+# handout = "handout.pdf" # "" disables; compiled with sys.inputs.slidekit-mode = "handout"
+# html = "index.html"     # "" disables
+# ppi = 216
+# jpeg-quality = 92

@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="slidekit">
+<title>__SLIDEKIT_TITLE__</title>
+<style>
+  :root { color-scheme: dark; --accent: #e5484d; --ink: #1c1c1e; --panel: #2a2a2d; --muted: #9a958f; --good: #3fae7a; --label: #f8a056; --aspect: 16 / 9; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: #eee;
+               font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+
+  /* audience view */
+  #stage { position: absolute; inset: 0; margin: auto; aspect-ratio: var(--aspect); width: min(100vw, calc(100vh * var(--aspect))); }
+  .slide { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; }
+  .hot { position: absolute; cursor: pointer; border-radius: 0.4%; }
+  .hot:hover { outline: 3px solid rgba(255,255,255,.6); }
+  .hot video { width: 100%; height: 100%; object-fit: contain; background: #000; border-radius: 0.4%; }
+  #hud { position: fixed; right: 12px; bottom: 10px; color: #aaa; font-size: 13px; background: rgba(0,0,0,.55);
+         padding: 4px 9px; border-radius: 4px; opacity: 0; transition: opacity .3s; }
+  body.mouse #hud { opacity: 1; }
+  #mini { position: fixed; left: 10px; bottom: 8px; font-size: 12px; color: rgba(255,255,255,.45);
+          font-variant-numeric: tabular-nums; display: none; }
+  #help { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--ink); color: #eee;
+          padding: 18px 24px; border-radius: 8px; font-size: 15px; line-height: 1.6; display: none; z-index: 9; }
+  kbd { font: inherit; background: #333; border-radius: 3px; padding: 0 5px; }
+
+  /* presenter view */
+  body.presenter { background: var(--ink); overflow: auto; }
+  body.presenter #stage, body.presenter #hud, body.presenter #mini { display: none; }
+  #pv { display: none; height: 100vh; box-sizing: border-box; padding: 14px; gap: 14px;
+        grid-template-columns: 1.5fr 1fr; grid-template-rows: auto minmax(0, 1.25fr) minmax(0, 1fr); }
+  body.presenter #pv { display: grid; }
+  #pv-head { grid-column: 1 / 3; display: flex; align-items: center; gap: 16px; border-bottom: 3px solid var(--accent); padding-bottom: 8px; }
+  #pv-no { font-size: 28px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  #pv-title { font-size: 24px; font-weight: 600; flex: 1; }
+  #pv-clock { font-size: 22px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .frame { position: relative; aspect-ratio: var(--aspect); max-width: 100%; max-height: 100%; background: #000; border-radius: 6px; overflow: hidden; }
+  .frame img { width: 100%; height: 100%; display: block; }
+  #pv-cur-wrap { display: flex; align-items: flex-start; justify-content: center; min-height: 0; }
+  #pv-side { grid-column: 2; grid-row: 2 / 4; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; }
+  .label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--label); margin-bottom: 4px; }
+  #pv-next { width: 100%; }
+  .card { background: var(--panel); border-radius: 6px; padding: 12px 14px; }
+  #pv-speaker { font-size: 34px; font-weight: 700; }
+  #pv-handover { margin-top: 6px; font-size: 16px; color: var(--muted); }
+  #pv-handover.change { color: #fff; }
+  #pv-handover.change b { background: var(--accent); padding: 2px 8px; border-radius: 12px; }
+  #pv-timers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-variant-numeric: tabular-nums; }
+  .big { font-size: 38px; font-weight: 700; }
+  .sub { font-size: 13px; color: var(--muted); }
+  .bar { height: 6px; background: #444; border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--good); width: 0; }
+  .over { color: #ff6b6b; } .over .bar > div { background: var(--accent); }
+  .ahead { color: var(--good); } .behind { color: #ff6b6b; }
+  #pv-notes { grid-column: 1; grid-row: 3; overflow: auto; font-size: 21px; line-height: 1.5; min-height: 0; }
+  #pv-notes ul { margin: 0; padding-left: 1.2em; } #pv-notes li { margin: .25em 0; } #pv-notes li::marker { color: var(--accent); }
+  #pv-notes code { background: #333; padding: 0 4px; border-radius: 3px; }
+  #pv-keys { font-size: 12px; color: var(--muted); }
+  button { font: inherit; background: var(--panel); color: #eee; border: 1px solid #555; border-radius: 4px; padding: 3px 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="hud"></div>
+<div id="mini"></div>
+<div id="help">
+  <b>Keys</b><br>
+  <kbd>→</kbd> <kbd>Space</kbd> <kbd>PgDn</kbd> next · <kbd>←</kbd> <kbd>PgUp</kbd> <kbd>Backspace</kbd> back · <kbd>Home</kbd> <kbd>End</kbd><br>
+  number + <kbd>Enter</kbd>: jump to slide<br>
+  <kbd>V</kbd> play/pause video · <kbd>Esc</kbd> close video · click a video area to play it<br>
+  <kbd>P</kbd> presenter view (own window) · <kbd>T</kbd> small timer · <kbd>F</kbd> fullscreen · <kbd>H</kbd> this help
+</div>
+
+<div id="pv">
+  <div id="pv-head"><span id="pv-no"></span><span id="pv-title"></span><span id="pv-clock"></span></div>
+  <div id="pv-cur-wrap"><div class="frame" id="pv-cur"><img alt=""></div></div>
+  <div id="pv-side">
+    <div class="card">
+      <div class="label">Speaking now</div>
+      <div id="pv-speaker"></div>
+      <div id="pv-handover"></div>
+    </div>
+    <div id="pv-timers">
+      <div class="card"><div class="label">Total</div><div class="big" id="pv-total">0:00</div><div class="sub" id="pv-plan"></div></div>
+      <div class="card" id="pv-slidecard"><div class="label">This slide</div><div class="big" id="pv-slide">0:00</div>
+        <div class="sub" id="pv-slideplan"></div><div class="bar"><div id="pv-bar"></div></div></div>
+    </div>
+    <div><div class="label">Next</div><div class="frame" id="pv-next"><img alt=""></div></div>
+    <div id="pv-keys">← → navigate · V video · R reset timers · <button id="pv-reset">Reset timers</button></div>
+  </div>
+  <div id="pv-notes" class="card"></div>
+</div>
+
+<script>
+const DECK = __SLIDEKIT_DATA__;
+const SLIDES = DECK.slides;
+const PRESENTER = new URLSearchParams(location.search).has('presenter');
+const $ = id => document.getElementById(id);
+const fmt = s => { s = Math.max(0, Math.round(s)); const m = Math.floor(s / 60); return m + ':' + String(s % 60).padStart(2, '0'); };
+const clock = ms => { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+const fmtSigned = s => (s < 0 ? '−' : '+') + fmt(Math.abs(s));
+document.documentElement.style.setProperty('--aspect', DECK.aspect);
+SLIDES.forEach(s => { const i = new Image(); i.src = s.img; });
+
+/* shared state: owned by the audience window, mirrored to the presenter window */
+let cur = 0, start = null, slideStart = Date.now();
+let peer = null;   // the other window
+const send = msg => { try { if (peer && !peer.closed) peer.postMessage(msg, '*'); } catch (e) {} };
+// timers survive a reload (live reload while serving, or F5 during the talk)
+const saveTimers = () => { try { sessionStorage.setItem('slidekit-timers', JSON.stringify({ start, slideStart })); } catch (e) {} };
+const loadTimers = () => { try { const t = JSON.parse(sessionStorage.getItem('slidekit-timers')); if (t) ({ start, slideStart } = t); } catch (e) {} };
+
+// audience view
+const stage = $('stage'), hud = $('hud'), help = $('help'), mini = $('mini');
+function show(n) {
+  if (!SLIDES.length) return;
+  n = Math.max(0, Math.min(SLIDES.length - 1, n));
+  if (n !== cur) {
+    // timer starts with the first step forward; time on the first slide counts up to its planned length
+    if (start === null && n > 0) start = Date.now() - Math.min(Date.now() - slideStart, SLIDES[cur].minutes * 60000);
+    slideStart = Date.now();
+  }
+  cur = n;
+  saveTimers();
+  const s = SLIDES[cur];
+  stage.innerHTML = '';
+  const img = document.createElement('img');
+  img.className = 'slide'; img.src = s.img; img.alt = s.title || ('Slide ' + (cur + 1));
+  stage.appendChild(img);
+  s.videos.forEach(v => {
+    const d = document.createElement('div');
+    d.className = 'hot';
+    Object.assign(d.style, { left: v.l + '%', top: v.t + '%', width: v.w + '%', height: v.h + '%' });
+    d.title = 'Play video';
+    d.onclick = e => { e.stopPropagation(); play(d, v); };
+    stage.appendChild(d);
+  });
+  hud.textContent = (cur + 1) + ' / ' + SLIDES.length + (s.title ? ' · ' + s.title : '');
+  try { history.replaceState(null, '', location.search + '#' + (cur + 1)); } catch (e) {}
+  send({ type: 'state', cur, start, slideStart });
+}
+function play(d, v) {
+  let vid = d.querySelector('video');
+  if (!vid) {
+    vid = document.createElement('video');
+    vid.src = v.src; vid.controls = true; vid.autoplay = true; vid.playsInline = true;
+    d.appendChild(vid);
+    d.style.cursor = 'default';
+    vid.play().catch(() => {});
+  } else if (vid.paused) { vid.play(); } else { vid.pause(); }
+}
+function toggleVideo() { const d = stage.querySelector('.hot'); if (d) d.click(); }
+function openPresenter() {
+  if (peer && !peer.closed) { peer.focus(); return; }
+  peer = window.open(location.pathname + '?presenter', 'slidekit-presenter', 'width=1280,height=800');
+}
+function resetTimer() { start = null; slideStart = Date.now(); saveTimers(); send({ type: 'state', cur, start, slideStart }); }
+
+let typed = '';
+function onKey(e, forward) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.tagName === 'VIDEO' && [' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.target.blur();
+  const k = e.key;
+  if (/^[0-9]$/.test(k)) { typed += k; return; }
+  let cmd = null;
+  if (k === 'Enter' && typed) cmd = { go: parseInt(typed, 10) - 1 };
+  typed = '';
+  if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(k)) { e.preventDefault(); cmd = { go: cur + 1 }; }
+  else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(k)) { e.preventDefault(); cmd = { go: cur - 1 }; }
+  else if (k === 'Home') cmd = { go: 0 };
+  else if (k === 'End') cmd = { go: SLIDES.length - 1 };
+  else if (k === 'v' || k === 'V') cmd = { video: true };
+  else if (k === 'Escape') cmd = { go: cur, close: true };
+  else if (k === 'r' || k === 'R') cmd = { reset: true };
+  if (forward) { if (cmd) send({ type: 'cmd', cmd }); return; }
+  if (cmd) runCmd(cmd);
+  else if (k === 'f' || k === 'F') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+  else if (k === 'p' || k === 'P') openPresenter();
+  else if (k === 't' || k === 'T') { mini.style.display = mini.style.display === 'block' ? 'none' : 'block'; tickMini(); }
+  else if (k === 'h' || k === 'H' || k === '?') help.style.display = help.style.display === 'block' ? 'none' : 'block';
+}
+function runCmd(c) {
+  if (c.reset) return resetTimer();
+  if (c.video) return toggleVideo();
+  if (c.close) return show(cur);
+  if ('go' in c) show(c.go);
+}
+
+// presenter view
+function renderPresenter() {
+  const s = SLIDES[cur], nx = SLIDES[cur + 1];
+  if (!s) return;
+  $('pv-no').textContent = (cur + 1) + ' / ' + SLIDES.length;
+  $('pv-title').textContent = s.title || '';
+  $('pv-cur').querySelector('img').src = s.img;
+  $('pv-next').querySelector('img').src = nx ? nx.img : '';
+  $('pv-next').style.visibility = nx ? 'visible' : 'hidden';
+  $('pv-speaker').textContent = s.speaker || '–';
+  const ho = $('pv-handover');
+  if (nx && nx.speaker && nx.speaker !== s.speaker) { ho.className = 'change'; ho.innerHTML = 'Next: <b></b>'; ho.querySelector('b').textContent = nx.speaker; }
+  else { ho.className = ''; ho.textContent = nx ? 'Next: ' + (nx.speaker || '–') + ' (same)' : 'Last slide'; }
+  $('pv-notes').innerHTML = s.notes || '<span class="sub">(no notes)</span>';
+  $('pv-notes').scrollTop = 0;
+  tick();
+}
+function tick() {
+  const now = Date.now();
+  $('pv-clock').textContent = clock(now);
+  const s = SLIDES[cur];
+  if (!s) return;
+  const total = start === null ? 0 : (now - start) / 1000;
+  $('pv-total').textContent = start === null ? 'ready' : fmt(total);
+  const planned = DECK.planned;
+  const plan = $('pv-plan');
+  const onSlide = (now - slideStart) / 1000;
+  if (start === null) { plan.textContent = 'starts with the first step forward · plan ' + Math.round(planned) + ' min (ends ≈ ' + clock(now + planned * 60000) + ')'; plan.className = 'sub'; }
+  else {
+    // compare with the plan: where we should be at this moment of the current slide
+    const delta = total - (s.before * 60 + Math.min(onSlide, s.minutes * 60));
+    plan.textContent = (Math.abs(delta) < 30 ? 'on plan' : (delta > 0 ? fmtSigned(delta) + ' behind plan' : fmtSigned(delta) + ' ahead of plan')) + ' · planned end ' + clock(start + planned * 60000) + ', expected ' + clock(start + planned * 60000 + Math.max(0, delta) * 1000);
+    plan.className = 'sub ' + (delta > 60 ? 'behind' : delta < -60 ? 'ahead' : '');
+  }
+  $('pv-slide').textContent = fmt(onSlide);
+  $('pv-slideplan').textContent = s.minutes ? 'planned ' + fmt(s.minutes * 60) : '';
+  $('pv-bar').style.width = s.minutes ? Math.min(100, onSlide / (s.minutes * 60) * 100) + '%' : '0';
+  $('pv-slidecard').className = 'card' + (s.minutes && onSlide > s.minutes * 60 ? ' over' : '');
+}
+function tickMini() {
+  if (mini.style.display !== 'block') return;
+  mini.textContent = start === null ? '' : fmt((Date.now() - start) / 1000);
+}
+
+// wiring
+window.addEventListener('message', e => {
+  const m = e.data || {};
+  if (PRESENTER) {
+    if (m.type === 'state') { peer = e.source; cur = m.cur; start = m.start; slideStart = m.slideStart; renderPresenter(); }
+  } else {
+    peer = e.source;
+    if (m.type === 'hello') send({ type: 'state', cur, start, slideStart });
+    if (m.type === 'cmd') runCmd(m.cmd);
+  }
+});
+
+if (PRESENTER) {
+  document.body.classList.add('presenter');
+  document.title = 'Presenter · ' + document.title;
+  peer = window.opener;
+  renderPresenter();
+  // ask the audience window for the current state; repeat until it answers (also after a reload there)
+  const hello = () => send({ type: 'hello' });
+  hello(); setInterval(() => { if (peer) hello(); }, 3000);
+  document.addEventListener('keydown', e => onKey(e, true));
+  $('pv-reset').onclick = () => send({ type: 'cmd', cmd: { reset: true } });
+  setInterval(tick, 500);
+} else {
+  document.addEventListener('keydown', e => onKey(e, false));
+  const fromHash = () => { const n = parseInt(location.hash.slice(1), 10); return isNaN(n) ? 0 : n - 1; };
+  window.addEventListener('hashchange', () => { if (fromHash() !== cur) show(fromHash()); });
+  let mt;
+  document.addEventListener('mousemove', () => { document.body.classList.add('mouse'); clearTimeout(mt); mt = setTimeout(() => document.body.classList.remove('mouse'), 1500); });
+  loadTimers();
+  cur = fromHash(); show(cur);
+  setInterval(tickMini, 1000);
+  // ?debug: outline video areas and start the first one muted (for automated checks)
+  if (new URLSearchParams(location.search).has('debug')) {
+    document.querySelectorAll('.hot').forEach(d => d.style.outline = '4px solid lime');
+    const d = stage.querySelector('.hot');
+    if (d) { d.click(); const v = d.querySelector('video'); v.muted = true; }
+  }
+}
+
+// live reload, only when served by `slidekit serve`, which flips this flag (reload keeps the slide via the URL hash)
+const LIVE_RELOAD = false;
+if (LIVE_RELOAD && window.EventSource) {
+  const events = new EventSource('/__slidekit/events');
+  events.addEventListener('reload', () => location.reload());
+}
+</script>
+</body>
+</html>
