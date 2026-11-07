@@ -13,3 +13,10 @@ dir = "dist"
 # html = "index.html"     # "" disables
 # ppi = 216
 # jpeg-quality = 92
+
+[player]
+# transition = "fade"     # none | fade | slide | cover | zoom | wipe
+# transition-duration = 0.35
+# progress = false        # progress bar along the bottom
+# loop = false            # start over after the last slide
+# advance = 0             # auto-advance every n seconds (0 = off)

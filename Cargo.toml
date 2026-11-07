@@ -1,6 +1,6 @@
 [package]
 name = "slidekit"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Build PDF, handout and an offline HTML player with presenter view from a Typst deck"
 license = "MIT"

@@ -12,15 +12,19 @@
 #show heading: set text(fill: accent)
 
 /// One slide. In handout mode it becomes a small preview with the speaker notes.
-#let slide(title: none, speaker: none, minutes: none, notes: none, body) = {
-  let info = sk.slide-info(title: title, speaker: speaker, minutes: minutes, notes: notes)
+/// `steps: n` shows it in n build steps (use `sk.uncover(2)[..]`, `sk.only(3)[..]` inside);
+/// `transition` is how it enters (see slidekit.toml for the default).
+#let slide(title: none, speaker: none, minutes: none, notes: none, steps: 1, transition: auto, body) = {
+  let info(step) = sk.slide-info(
+    title: title, speaker: speaker, minutes: minutes, notes: notes, transition: transition, step: step,
+  )
   let content = {
     if title != none { heading(title) }
     body
   }
   if sk.is-handout {
     block(breakable: false, below: 1.5em, {
-      info
+      info(none)
       if title != none { heading(level: 2, title) }
       text(fill: gray)[#speaker · #minutes min]
       grid(
@@ -34,7 +38,7 @@
       )
     })
   } else {
-    page(info + content)
+    sk.stepped(steps, i => page(info(i) + content))
   }
 }
 
@@ -50,12 +54,12 @@
   A talk built with *Typst* and *slidekit*.
 ]
 
-#slide(title: [Main point], speaker: "Ada", minutes: 3, notes: [
-  Take your time here.
+#slide(title: [Main point], speaker: "Ada", minutes: 3, steps: 3, transition: "slide", notes: [
+  Take your time here. The points appear one by one.
 ])[
   - First
-  - Second
-  - Third
+  - #sk.uncover(2)[Second]
+  - #sk.uncover(3)[Third]
 ]
 
 #slide(title: [A video], speaker: "Bob", minutes: 2, notes: [

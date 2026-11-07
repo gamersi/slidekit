@@ -3,7 +3,9 @@
 mod build;
 mod compile;
 mod config;
+mod contract;
 mod export;
+mod links;
 mod media;
 mod meta;
 mod notes;

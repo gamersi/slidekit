@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Syntax colours for code blocks on the showcase deck's dark slides. -->
+<plist version="1.0">
+<dict>
+  <key>name</key><string>slidekit night</string>
+  <key>settings</key>
+  <array>
+    <dict><key>settings</key><dict>
+      <key>foreground</key><string>#E9E6DF</string>
+      <key>background</key><string>#161A2C</string>
+    </dict></dict>
+    <dict><key>scope</key><string>comment, punctuation.definition.comment</string>
+      <key>settings</key><dict><key>foreground</key><string>#6E7591</string><key>fontStyle</key><string>italic</string></dict></dict>
+    <dict><key>scope</key><string>string, markup.raw, constant.character</string>
+      <key>settings</key><dict><key>foreground</key><string>#B8E07A</string></dict></dict>
+    <dict><key>scope</key><string>constant.numeric, constant.language, constant.other, support.constant</string>
+      <key>settings</key><dict><key>foreground</key><string>#FFB86B</string></dict></dict>
+    <dict><key>scope</key><string>keyword, storage, keyword.control, keyword.operator.word</string>
+      <key>settings</key><dict><key>foreground</key><string>#FF8A3D</string></dict></dict>
+    <dict><key>scope</key><string>entity.name.function, support.function, variable.function, meta.function-call</string>
+      <key>settings</key><dict><key>foreground</key><string>#7AA2FF</string></dict></dict>
+    <dict><key>scope</key><string>entity.name, entity.other.attribute-name, variable.parameter, meta.mapping.key</string>
+      <key>settings</key><dict><key>foreground</key><string>#C9A3FF</string></dict></dict>
+    <dict><key>scope</key><string>entity.name.tag, markup.heading, entity.name.section</string>
+      <key>settings</key><dict><key>foreground</key><string>#FF8A3D</string><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>scope</key><string>markup.bold</string>
+      <key>settings</key><dict><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>scope</key><string>markup.italic</string>
+      <key>settings</key><dict><key>fontStyle</key><string>italic</string></dict></dict>
+    <dict><key>scope</key><string>punctuation, keyword.operator</string>
+      <key>settings</key><dict><key>foreground</key><string>#9AA0BA</string></dict></dict>
+  </array>
+</dict>
+</plist>

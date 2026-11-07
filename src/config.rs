@@ -15,6 +15,8 @@ struct RawConfig {
     deck: RawDeck,
     #[serde(default)]
     output: RawOutput,
+    #[serde(default)]
+    player: RawPlayer,
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,6 +58,61 @@ impl Default for RawOutput {
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case", default)]
+struct RawPlayer {
+    transition: String,
+    transition_duration: f64,
+    progress: bool,
+    #[serde(rename = "loop")]
+    looped: bool,
+    advance: f64,
+}
+
+impl Default for RawPlayer {
+    fn default() -> Self {
+        let p = Player::default();
+        Self {
+            transition: p.transition,
+            transition_duration: p.transition_duration,
+            progress: p.progress,
+            looped: p.looped,
+            advance: p.advance,
+        }
+    }
+}
+
+/// Transition kinds the player implements (keep in sync with `assets/slidekit.typ`).
+pub const TRANSITIONS: &[&str] = &["none", "fade", "slide", "cover", "zoom", "wipe"];
+
+/// `[player]`: defaults for the HTML player.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Player {
+    /// Default transition kind (see `TRANSITIONS`).
+    pub transition: String,
+    /// Default transition duration in seconds.
+    pub transition_duration: f64,
+    /// Thin progress bar at the bottom of the slides.
+    pub progress: bool,
+    /// After the last slide, start over (kiosk mode).
+    #[serde(rename = "loop")]
+    pub looped: bool,
+    /// Auto-advance every n seconds; 0 = off.
+    pub advance: f64,
+}
+
+impl Default for Player {
+    fn default() -> Self {
+        Self {
+            transition: "fade".into(),
+            transition_duration: 0.35,
+            progress: false,
+            looped: false,
+            advance: 0.0,
+        }
+    }
+}
+
 fn dot() -> PathBuf {
     ".".into()
 }
@@ -80,6 +137,7 @@ pub struct Config {
     pub html: Option<PathBuf>,
     pub ppi: f32,
     pub jpeg_quality: u8,
+    pub player: Player,
 }
 
 impl Config {
@@ -131,6 +189,28 @@ impl Config {
             );
         }
 
+        let p = raw.player;
+        if !TRANSITIONS.contains(&p.transition.as_str()) {
+            bail!(
+                "player.transition `{}` is unknown, expected one of {}",
+                p.transition,
+                TRANSITIONS.join(", ")
+            );
+        }
+        if !(0.0..=10.0).contains(&p.transition_duration) {
+            bail!("player.transition-duration must be between 0 and 10 seconds");
+        }
+        if p.advance.is_nan() || p.advance < 0.0 {
+            bail!("player.advance must be 0 (off) or a number of seconds");
+        }
+        let player = Player {
+            transition: p.transition,
+            transition_duration: p.transition_duration,
+            progress: p.progress,
+            looped: p.looped,
+            advance: p.advance,
+        };
+
         let output_file = |name: &str| -> Result<Option<PathBuf>> {
             if name.is_empty() {
                 return Ok(None);
@@ -161,6 +241,7 @@ impl Config {
             html: output_file(&raw.output.html)?,
             ppi: raw.output.ppi,
             jpeg_quality: raw.output.jpeg_quality,
+            player,
             deck_dir,
             root,
             entry,
@@ -208,6 +289,7 @@ mod tests {
         assert_eq!(c.ppi, 216.0);
         assert_eq!(c.jpeg_quality, 92);
         assert!(!c.system_fonts);
+        assert_eq!(c.player, Player::default());
     }
 
     #[test]
@@ -230,6 +312,12 @@ mod tests {
             handout = "notes.pdf"
             ppi = 144
             jpeg-quality = 80
+            [player]
+            transition = "slide"
+            transition-duration = 0.6
+            progress = true
+            loop = true
+            advance = 8
         "#;
         let c = Config::parse(text, &sub).unwrap();
         assert_eq!(c.title, "Talk");
@@ -241,6 +329,16 @@ mod tests {
         assert_eq!(c.handout, Some(sub.join("out/notes.pdf")));
         assert_eq!(c.ppi, 144.0);
         assert_eq!(c.jpeg_quality, 80);
+        assert_eq!(
+            c.player,
+            Player {
+                transition: "slide".into(),
+                transition_duration: 0.6,
+                progress: true,
+                looped: true,
+                advance: 8.0
+            }
+        );
     }
 
     #[test]
@@ -254,6 +352,8 @@ mod tests {
             "[deck]\nentry = \"main.typ\"\n[output]\npdf = \"../x.pdf\"\n",
             "[deck]\nentry = \"main.typ\"\ninputs = { slidekit-mode = \"x\" }\n",
             "[output]\ndir = \"x\"\n",
+            "[deck]\nentry = \"main.typ\"\n[player]\ntransition = \"spin\"\n",
+            "[deck]\nentry = \"main.typ\"\n[player]\nadvance = -1\n",
         ];
         for text in bad {
             assert!(Config::parse(text, dir.path()).is_err(), "accepted: {text}");

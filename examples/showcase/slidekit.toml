@@ -1,0 +1,13 @@
+[deck]
+entry = "slides.typ"
+title = "slidekit: slides as code"
+
+[output]
+dir = "dist"
+
+[player]
+transition = "fade"          # deck default; slides override it with sk.slide-info(transition: ..)
+transition-duration = 0.4    # seconds
+progress = true              # thin progress bar along the bottom
+# loop = true                # kiosk mode: start over after the last slide
+# advance = 8                # auto-advance every n seconds (0 = off)

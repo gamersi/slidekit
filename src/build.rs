@@ -10,7 +10,7 @@ use crate::compile::{self, Compiled};
 use crate::config::Config;
 use crate::meta::Meta;
 use crate::world::{Mode, Session};
-use crate::{export, media, player, render};
+use crate::{contract, export, links, media, player, render};
 
 /// Which outputs to produce (on top of what the config enables).
 #[derive(Debug, Clone, Copy)]
@@ -63,6 +63,14 @@ impl Builder {
 
     pub fn build(&mut self) -> Result<Summary> {
         let total = Instant::now();
+        let mut summary = Summary::default();
+        if let contract::Upgrade::From(old) = contract::upgrade(&self.config.deck_dir)? {
+            summary.warnings.push(format!(
+                "note: updated {} from contract v{old} to v{} (it was an unmodified copy)\n",
+                crate::scaffold::LIB_PATH,
+                contract::VERSION
+            ));
+        }
         self.session.reset();
         let config = &self.config;
         let pdf = config.pdf.as_ref().filter(|_| self.options.pdf);
@@ -82,10 +90,13 @@ impl Builder {
             || timed_compile(need_slides, &slides_world),
             || timed_compile(handout.is_some(), &handout_world),
         );
-        let slides = slides.transpose().context("slides")?;
-        let handout_doc = handout_doc.transpose().context("handout")?;
+        let hint = |err: anyhow::Error| match contract::compile_hint(&self.config.deck_dir) {
+            Some(hint) => anyhow::anyhow!("{err:#}\n{hint}"),
+            None => err,
+        };
+        let slides = slides.transpose().context("slides").map_err(hint)?;
+        let handout_doc = handout_doc.transpose().context("handout").map_err(hint)?;
 
-        let mut summary = Summary::default();
         if let Some((c, t)) = &slides {
             summary.timings.push(("compile", *t));
             summary.warnings.extend(c.warnings.iter().cloned());
@@ -145,6 +156,7 @@ impl Builder {
             summary.planned_minutes = part.planned;
             summary.images = part.images;
             summary.media = Some(part.media);
+            summary.warnings.extend(part.contract_warning);
             summary.timings.extend(part.timings);
             summary.outputs.extend(html.cloned());
         } else if let Some((c, _)) = &handout_doc {
@@ -162,9 +174,15 @@ impl Builder {
             ..Default::default()
         };
         let meta = Meta::extract(&slides.doc)?;
+        part.contract_warning = contract::check(&meta);
         part.slide_infos = meta.slides.len();
         part.videos = meta.videos.len();
-        part.planned = meta.slides.values().filter_map(|s| s.minutes).sum();
+        part.planned = meta
+            .slides
+            .values()
+            .filter(|s| !s.continues())
+            .filter_map(|s| s.minutes)
+            .sum();
 
         let start = Instant::now();
         part.media = media::copy(config, meta.videos.iter().map(|v| v.file.as_str()))?;
@@ -179,14 +197,15 @@ impl Builder {
             part.images = Some(stats);
 
             let start = Instant::now();
-            player::write(
-                path,
-                &config.out_dir,
-                &config.title,
-                &slides.doc,
-                &meta,
-                &images,
-            )?;
+            let links = links::extract(&slides.doc);
+            let inputs = player::Inputs {
+                title: &config.title,
+                meta: &meta,
+                images: &images,
+                links: &links,
+                player: &config.player,
+            };
+            player::write(path, &config.out_dir, &slides.doc, &inputs)?;
             part.timings.push(("html", start.elapsed()));
         }
         Ok(part)
@@ -206,6 +225,7 @@ struct PlayerPart {
     planned: f64,
     images: Option<render::Stats>,
     media: media::Stats,
+    contract_warning: Option<String>,
     timings: Vec<(&'static str, Duration)>,
 }
 

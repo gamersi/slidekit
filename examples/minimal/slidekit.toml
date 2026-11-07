@@ -13,3 +13,7 @@ dir = "dist"
 # html = "index.html"     # "" disables
 # ppi = 216
 # jpeg-quality = 92
+
+[player]
+# transition = "fade"     # none | fade | slide | cover | zoom | wipe
+# progress = false
