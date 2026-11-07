@@ -82,7 +82,10 @@ fn builds_minimal_example() {
         assert!(v > 0.0 && v < 100.0, "{key} = {v}");
     }
     for slide in slides {
-        assert!(dist.join(slide["img"].as_str().unwrap()).is_file());
+        let img = slide["img"].as_str().unwrap();
+        assert!(img.ends_with(".svg"), "{img}");
+        let svg = std::fs::read_to_string(dist.join(img)).unwrap();
+        assert!(svg.starts_with("<svg"), "{img} is not an SVG");
     }
     let images = std::fs::read_dir(dist.join("slides")).unwrap().count();
     assert_eq!(images, 6);
@@ -90,6 +93,26 @@ fn builds_minimal_example() {
     // A second build reuses every image.
     let report = build(&deck);
     assert!(report.contains("0 rendered, 6 reused"), "{report}");
+
+    // Switching to JPEG renders every page again and removes the SVGs.
+    let toml = deck.join("slidekit.toml");
+    let text = std::fs::read_to_string(&toml).unwrap();
+    let text = text.replace("[output]\n", "[output]\nimages = \"jpeg\"\n");
+    std::fs::write(&toml, text).unwrap();
+    let report = build(&deck);
+    assert!(
+        report.contains("6 rendered, 0 reused, 6 removed"),
+        "{report}"
+    );
+    for entry in std::fs::read_dir(dist.join("slides")).unwrap() {
+        let path = entry.unwrap().path();
+        let bytes = std::fs::read(&path).unwrap();
+        assert!(
+            bytes.starts_with(&[0xFF, 0xD8]),
+            "{} is not a JPEG",
+            path.display()
+        );
+    }
 }
 
 #[test]

@@ -41,6 +41,7 @@ struct RawOutput {
     pdf: String,
     handout: String,
     html: String,
+    images: ImageFormat,
     ppi: f32,
     jpeg_quality: u8,
 }
@@ -52,6 +53,7 @@ impl Default for RawOutput {
             pdf: "slides.pdf".into(),
             handout: "handout.pdf".into(),
             html: "index.html".into(),
+            images: ImageFormat::Svg,
             ppi: 216.0,
             jpeg_quality: 92,
         }
@@ -80,6 +82,16 @@ impl Default for RawPlayer {
             advance: p.advance,
         }
     }
+}
+
+/// How the player's slide images are rendered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImageFormat {
+    /// Vector, sharp at any size; `ppi` and `jpeg-quality` are ignored.
+    Svg,
+    /// Rasterised at `ppi`.
+    Jpeg,
 }
 
 /// Transition kinds the player implements (keep in sync with `assets/slidekit.typ`).
@@ -135,6 +147,7 @@ pub struct Config {
     pub pdf: Option<PathBuf>,
     pub handout: Option<PathBuf>,
     pub html: Option<PathBuf>,
+    pub images: ImageFormat,
     pub ppi: f32,
     pub jpeg_quality: u8,
     pub player: Player,
@@ -239,6 +252,7 @@ impl Config {
             pdf: output_file(&raw.output.pdf)?,
             handout: output_file(&raw.output.handout)?,
             html: output_file(&raw.output.html)?,
+            images: raw.output.images,
             ppi: raw.output.ppi,
             jpeg_quality: raw.output.jpeg_quality,
             player,
@@ -286,6 +300,7 @@ mod tests {
         assert_eq!(c.pdf, Some(dir.path().join("dist/slides.pdf")));
         assert_eq!(c.handout, Some(dir.path().join("dist/handout.pdf")));
         assert_eq!(c.html, Some(dir.path().join("dist/index.html")));
+        assert_eq!(c.images, ImageFormat::Svg);
         assert_eq!(c.ppi, 216.0);
         assert_eq!(c.jpeg_quality, 92);
         assert!(!c.system_fonts);
@@ -310,6 +325,7 @@ mod tests {
             dir = "out"
             pdf = ""
             handout = "notes.pdf"
+            images = "jpeg"
             ppi = 144
             jpeg-quality = 80
             [player]
@@ -327,6 +343,7 @@ mod tests {
         assert_eq!(c.inputs["version"], "long");
         assert_eq!(c.pdf, None);
         assert_eq!(c.handout, Some(sub.join("out/notes.pdf")));
+        assert_eq!(c.images, ImageFormat::Jpeg);
         assert_eq!(c.ppi, 144.0);
         assert_eq!(c.jpeg_quality, 80);
         assert_eq!(
@@ -349,6 +366,7 @@ mod tests {
             "[deck]\nentry = \"main.typ\"\nunknown = 1\n",
             "[deck]\nentry = \"main.typ\"\n[output]\ndir = \".\"\n",
             "[deck]\nentry = \"main.typ\"\n[output]\njpeg-quality = 0\n",
+            "[deck]\nentry = \"main.typ\"\n[output]\nimages = \"png\"\n",
             "[deck]\nentry = \"main.typ\"\n[output]\npdf = \"../x.pdf\"\n",
             "[deck]\nentry = \"main.typ\"\ninputs = { slidekit-mode = \"x\" }\n",
             "[output]\ndir = \"x\"\n",

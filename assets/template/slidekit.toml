@@ -11,8 +11,9 @@ dir = "dist"
 # pdf = "slides.pdf"      # "" disables
 # handout = "handout.pdf" # "" disables; compiled with sys.inputs.slidekit-mode = "handout"
 # html = "index.html"     # "" disables
-# ppi = 216
-# jpeg-quality = 92
+# images = "svg"          # svg | jpeg
+# ppi = 216               # jpeg only
+# jpeg-quality = 92       # jpeg only
 
 [player]
 # transition = "fade"     # none | fade | slide | cover | zoom | wipe

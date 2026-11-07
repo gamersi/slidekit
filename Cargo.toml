@@ -1,6 +1,6 @@
 [package]
 name = "slidekit"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "Build PDF, handout and an offline HTML player with presenter view from a Typst deck"
 license = "MIT"
@@ -9,6 +9,7 @@ license = "MIT"
 typst = "0.15.1"
 typst-pdf = "0.15.1"
 typst-render = "0.15.1"
+typst-svg = "0.15.1"
 typst-layout = "0.15.1"
 typst-kit = { version = "0.15.1", features = [
     "embedded-fonts",

@@ -4,7 +4,7 @@ Turns a [Typst](https://typst.app) slide deck into
 
 - the slides as **PDF**,
 - a **speaker handout** PDF (the same deck compiled in handout mode),
-- an **offline HTML player**: slides as images with transitions and build steps, videos
+- an **offline HTML player**: slides as vector images (SVG, or JPEG if you prefer) with transitions and build steps, videos
   playing in place, clickable links, overview, blackout, laser pointer and pen, and a
   presenter view with notes, speaker hand-overs and timers. It works from `file://`, so you can copy
   `dist/` onto a USB stick.
@@ -134,8 +134,9 @@ dir = "dist"
 pdf = "slides.pdf"          # "" disables
 handout = "handout.pdf"     # "" disables; compiled with slidekit-mode=handout
 html = "index.html"         # "" disables (also skips the slide images)
-ppi = 216                   # 33.9 cm wide slide → 2880 px
-jpeg-quality = 92
+images = "svg"              # slide images: "svg" (vector, sharp at any size) or "jpeg"
+ppi = 216                   # jpeg only: 33.9 cm wide slide → 2880 px
+jpeg-quality = 92           # jpeg only
 
 [player]
 transition = "fade"         # default transition: none | fade | slide | cover | zoom | wipe

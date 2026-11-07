@@ -170,8 +170,8 @@ i => {
   speaker: "Mira", minutes: 2, transition: "slide",
   notes: [
     - Anything Typst can typeset works on a slide: *math*, *code*, tables, drawings.
-    - The left formula is real: a 33.867 cm slide at the default `ppi = 216` becomes a 2880 px
-      wide image in the player.
+    - The left formula is real: with `images = "jpeg"`, a 33.867 cm slide at the default
+      `ppi = 216` becomes a 2880 px wide image in the player (the default SVG has no pixels).
     - The code colours come from a small `night.tmTheme` next to the deck (`set raw(theme: ..)`).
     - Enters with *slide* at the deck's default duration.
   ],
@@ -239,7 +239,7 @@ i => {
         `slides.pdf`, [the deck, videos as links],
         `handout.pdf`, [notes, previews, run sheet],
         `index.html`, [offline player, no server],
-        `slides/*.jpg`, [one image per page],
+        `slides/*.svg`, [one image per page],
         `media/*`, [your videos, copied over],
         table.hline(stroke: 1pt + rule),
       )

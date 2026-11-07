@@ -191,8 +191,13 @@ impl Builder {
         if let (true, Some(path)) = (html, &config.html) {
             let start = Instant::now();
             let dir = config.out_dir.join(render::DIR);
-            let (images, stats) =
-                render::render(&slides.doc, &dir, config.ppi, config.jpeg_quality)?;
+            let (images, stats) = render::render(
+                &slides.doc,
+                &dir,
+                config.images,
+                config.ppi,
+                config.jpeg_quality,
+            )?;
             part.timings.push(("render", start.elapsed()));
             part.images = Some(stats);
 

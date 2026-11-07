@@ -1,4 +1,4 @@
-//! Rasterising pages to JPEG, in parallel and content-addressed.
+//! Rendering pages to SVG or JPEG, in parallel and content-addressed.
 //!
 //! Each image is named after a hash of its page (plus render settings), so an incremental
 //! rebuild only renders pages whose content changed and stale images are removed.
@@ -14,6 +14,8 @@ use typst::utils::{Scalar, hash128};
 use typst_layout::{Page, PagedDocument};
 use typst_render::RenderOptions;
 
+use crate::config::ImageFormat;
+
 /// The directory (inside the output dir) holding the slide images.
 pub const DIR: &str = "slides";
 
@@ -28,6 +30,7 @@ pub struct Stats {
 pub fn render(
     doc: &PagedDocument,
     dir: &Path,
+    format: ImageFormat,
     ppi: f32,
     quality: u8,
 ) -> Result<(Vec<String>, Stats)> {
@@ -35,7 +38,7 @@ pub fn render(
     let names: Vec<String> = doc
         .pages()
         .iter()
-        .map(|page| file_name(page, ppi, quality))
+        .map(|page| file_name(page, format, ppi, quality))
         .collect();
 
     let results: Vec<Result<bool>> = doc
@@ -47,10 +50,13 @@ pub fn render(
             if path.exists() {
                 return Ok(false);
             }
-            let jpeg = encode(page, ppi, quality)?;
+            let bytes = match format {
+                ImageFormat::Svg => encode_svg(page).into_bytes(),
+                ImageFormat::Jpeg => encode(page, ppi, quality)?,
+            };
             // Write next to the target and rename, so a server never sees half a file.
             let tmp = dir.join(format!("{name}.tmp"));
-            std::fs::write(&tmp, jpeg)
+            std::fs::write(&tmp, bytes)
                 .with_context(|| format!("cannot write {}", tmp.display()))?;
             std::fs::rename(&tmp, &path)?;
             Ok(true)
@@ -71,7 +77,8 @@ pub fn render(
         let entry = entry?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        let ours = name.ends_with(".jpg") || name.ends_with(".jpg.tmp");
+        let base = name.strip_suffix(".tmp").unwrap_or(&name);
+        let ours = base.ends_with(".jpg") || base.ends_with(".svg");
         if ours && !keep.contains(name.as_ref()) {
             std::fs::remove_file(entry.path())?;
             stats.removed += 1;
@@ -80,16 +87,22 @@ pub fn render(
     Ok((names, stats))
 }
 
-fn file_name(page: &Page, ppi: f32, quality: u8) -> String {
+fn file_name(page: &Page, format: ImageFormat, ppi: f32, quality: u8) -> String {
     let fill = page.fill_or_white();
+    // ppi and quality only matter for JPEG; leave them out for SVG so changing them
+    // doesn't re-render anything.
+    let (settings, ext) = match format {
+        ImageFormat::Svg => (None, "svg"),
+        ImageFormat::Jpeg => (Some((ppi.to_bits(), quality)), "jpg"),
+    };
     let hash = hash128(&(
         Visual(&page.frame),
         fill,
-        ppi.to_bits(),
-        quality,
+        format,
+        settings,
         env!("CARGO_PKG_VERSION"),
     ));
-    format!("{hash:032x}.jpg")
+    format!("{hash:032x}.{ext}")
 }
 
 /// Hashes only what is visible in a frame. The derived `Hash` of a frame also covers spans,
@@ -118,6 +131,11 @@ impl Hash for Visual<'_> {
             }
         }
     }
+}
+
+/// Renders one page as a self-contained SVG (images are embedded as data URLs).
+pub fn encode_svg(page: &Page) -> String {
+    typst_svg::svg(page, &typst_svg::SvgOptions::default())
 }
 
 /// Renders one page and encodes it as JPEG without chroma subsampling (keeps red text crisp).

@@ -20,7 +20,7 @@
 #let serif = "Libertinus Serif"
 #let mono = "DejaVu Sans Mono"
 
-// 16:9 at the size slidekit's default ppi turns into 2880 × 1620 px.
+// 16:9; with images = "jpeg" the default ppi turns this into 2880 × 1620 px.
 #let W = 33.867cm
 #let H = 19.05cm
 #let pad-x = 2.4cm
