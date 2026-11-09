@@ -214,7 +214,8 @@ pub fn write(path: &Path, out_dir: &Path, doc: &PagedDocument, inputs: &Inputs) 
     let tmp = path.with_extension("html.tmp");
     std::fs::write(&tmp, html(&deck)?)
         .with_context(|| format!("cannot write {}", tmp.display()))?;
-    std::fs::rename(&tmp, path)?;
+    std::fs::rename(&tmp, path)
+        .with_context(|| format!("cannot rename {} to {}", tmp.display(), path.display()))?;
     Ok(deck)
 }
 

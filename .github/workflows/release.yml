@@ -42,7 +42,9 @@ jobs:
           New-Item -ItemType Directory $name | Out-Null
           Copy-Item target/release/slidekit.exe, README.md, LICENSE $name
           Compress-Archive $name "$name.zip"
+          Copy-Item target/release/slidekit.exe "$name.exe"
           "ASSET=$name.zip" >> $env:GITHUB_ENV
+          "BINARY=$name.exe" >> $env:GITHUB_ENV
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
@@ -51,9 +53,12 @@ jobs:
           mkdir "$name"
           cp target/release/slidekit README.md LICENSE "$name"
           tar czf "$name.tar.gz" "$name"
+          mkdir bin && cp target/release/slidekit "bin/$name"
           echo "ASSET=$name.tar.gz" >> "$GITHUB_ENV"
+          echo "BINARY=bin/$name" >> "$GITHUB_ENV"
 
-      - run: gh release upload "$GITHUB_REF_NAME" "$ASSET" --repo "$GITHUB_REPOSITORY"
+      # the bare binary is what `slidekit update` downloads
+      - run: gh release upload "$GITHUB_REF_NAME" "$ASSET" "$BINARY" --repo "$GITHUB_REPOSITORY"
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

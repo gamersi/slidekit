@@ -10,7 +10,7 @@ use crate::compile::{self, Compiled};
 use crate::config::Config;
 use crate::meta::Meta;
 use crate::world::{Mode, Session};
-use crate::{contract, export, links, media, player, render};
+use crate::{contract, export, links, lint, media, player, render};
 
 /// Which outputs to produce (on top of what the config enables).
 #[derive(Debug, Clone, Copy)]
@@ -157,6 +157,7 @@ impl Builder {
             summary.images = part.images;
             summary.media = Some(part.media);
             summary.warnings.extend(part.contract_warning);
+            summary.warnings.extend(part.lint);
             summary.timings.extend(part.timings);
             summary.outputs.extend(html.cloned());
         } else if let Some((c, _)) = &handout_doc {
@@ -175,6 +176,7 @@ impl Builder {
         };
         let meta = Meta::extract(&slides.doc)?;
         part.contract_warning = contract::check(&meta);
+        part.lint = lint::check(&slides.doc, &meta);
         part.slide_infos = meta.slides.len();
         part.videos = meta.videos.len();
         part.planned = meta
@@ -231,6 +233,7 @@ struct PlayerPart {
     images: Option<render::Stats>,
     media: media::Stats,
     contract_warning: Option<String>,
+    lint: Vec<String>,
     timings: Vec<(&'static str, Duration)>,
 }
 

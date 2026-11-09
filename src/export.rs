@@ -17,6 +17,7 @@ pub fn pdf(world: &ModeWorld, doc: &PagedDocument, path: &Path) -> Result<()> {
     // Replace atomically so a viewer or server never reads a half-written file.
     let tmp = path.with_extension("pdf.tmp");
     std::fs::write(&tmp, bytes).with_context(|| format!("cannot write {}", tmp.display()))?;
-    std::fs::rename(&tmp, path)?;
+    std::fs::rename(&tmp, path)
+        .with_context(|| format!("cannot rename {} to {}", tmp.display(), path.display()))?;
     Ok(())
 }

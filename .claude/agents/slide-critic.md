@@ -1,0 +1,1 @@
+../../assets/agents/agents/slide-critic.md

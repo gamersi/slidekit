@@ -4,7 +4,7 @@ Turns a [Typst](https://typst.app) slide deck into
 
 - the slides as **PDF**,
 - a **speaker handout** PDF (the same deck compiled in handout mode),
-- an **offline HTML player**: slides as vector images (SVG, or JPEG if you prefer) with transitions and build steps, videos
+- an **offline HTML player**: slides as images (SVG for text and vector slides, JPEG for slides with photos) with transitions and build steps, videos
   playing in place, clickable links, overview, blackout, laser pointer and pen, and a
   presenter view with notes, speaker hand-overs and timers. It works from `file://`, so you can copy
   `dist/` onto a USB stick.
@@ -21,6 +21,8 @@ Prebuilt binaries for Windows, Linux and macOS are on the
 ```sh
 cargo install --git https://github.com/gamersi/slidekit
 ```
+
+`slidekit update` later replaces the binary with the newest release (`--check` only looks).
 
 typst 0.15.1 is built in, no separate `typst` binary needed. `@preview` packages are fetched
 and cached the same way the typst CLI does it.
@@ -46,11 +48,38 @@ slidekit watch  [DIR]                       # build, then rebuild incrementally 
 slidekit serve  [DIR] [--port 8765] [--open]  # watch + HTTP server with live reload
 slidekit init   [DIR]                       # new example deck (never overwrites)
 slidekit lib    [DIR]                       # (re)write lib/slidekit.typ from the built-in copy
+slidekit preview [DIR] [--sheet] [--pages 1,3-5] [--width 1280] [--handout] [--out DIR]
+                                            # numbered PNGs + manifest + layout checks
+slidekit agents [DIR] [--force]             # instructions for coding agents (see below)
+slidekit update [--check] [--force]         # replace this binary with the latest release
 
 global flags: --quiet  --no-handout  --no-html  --no-pdf
 ```
 
 Use `--no-handout --no-pdf` for the fastest loop while you are designing slides.
+
+`build` and `preview` check the layout and warn about text that runs off the slide or out of
+a clipping box, pages without `slide-info` (usually content that overflowed onto an extra
+page) and broken build-step numbering.
+
+`preview` renders pages to `dist/preview/page-NN.png` (`--sheet` adds `sheet.png`, all pages
+in one grid) and prints which slide and step each image is, with title, speaker, minutes
+and a `no notes` flag. It exits with status 2 when there are warnings. It is made for
+looking at a deck without a browser, e.g. by a coding agent that can read images.
+
+## Coding agents
+
+`slidekit agents [DIR]` adds to a deck:
+
+- `AGENTS.md` (and `CLAUDE.md` importing it): commands and rules for any coding agent;
+- `.claude/skills/slidekit/`: a Claude Code skill for writing decks: a loop of brief →
+  outline → theme → slides → `slidekit preview` → critique → build, with presentation design
+  guidance (`design.md`) and Typst idioms and pitfalls for slides (`typst.md`);
+- `.claude/agents/slide-critic.md`: a read-only reviewer subagent that renders the deck,
+  looks at every page and reports problems per slide with concrete fixes.
+
+Files that already exist and differ are kept unless you pass `--force`. The sources live
+in `assets/agents/` of this repository.
 
 ## The contract
 
@@ -134,9 +163,9 @@ dir = "dist"
 pdf = "slides.pdf"          # "" disables
 handout = "handout.pdf"     # "" disables; compiled with slidekit-mode=handout
 html = "index.html"         # "" disables (also skips the slide images)
-images = "svg"              # slide images: "svg" (vector, sharp at any size) or "jpeg"
-ppi = 216                   # jpeg only: 33.9 cm wide slide → 2880 px
-jpeg-quality = 92           # jpeg only
+images = "auto"             # slide images: "auto", "svg" or "jpeg" (see below)
+ppi = 216                   # jpeg pages only: 33.9 cm wide slide → 2880 px
+jpeg-quality = 92           # jpeg pages only
 
 [player]
 transition = "fade"         # default transition: none | fade | slide | cover | zoom | wipe
@@ -148,6 +177,11 @@ advance = 0                 # auto-advance every n seconds; 0 = off (slides can 
 
 Relative paths resolve against the directory that contains `slidekit.toml`. Unknown keys
 are an error.
+
+`images = "auto"` renders pages that are pure text and vector graphics as SVG (sharp at any
+size, small, fast) and pages that contain an image as JPEG. `"svg"` forces SVG everywhere,
+but browsers decode pictures nested inside an SVG lazily: such a slide can come up with
+blank or blurry photos until something repaints it, so avoid it for decks with photos.
 
 ## Player keys
 
@@ -198,9 +232,12 @@ world     typst::World: Session (file cache, fonts, packages, today) shared acro
 compile   PagedDocument for a mode; diagnostics as file:line:col + source snippet
 meta      <slidekit-slide>/<slidekit-video> via the introspector → typed structs
 contract  library version check, in-place upgrade of unmodified old copies
+lint      layout checks: text off the page or clipped, overflow pages, step numbering
+preview   pages → numbered PNGs + contact sheet + manifest
+agents    AGENTS.md, Claude Code skill and subagent for decks (from assets/agents/)
 links     link areas from the page frames (URL or target page)
 notes     typst content (JSON) → HTML for notes, plain text for titles
-render    pages → JPEG (4:4:4) in parallel; file name = hash of the page's visible
+render    pages → SVG or JPEG (4:4:4) in parallel; file name = hash of the page's visible
           content + settings, so unchanged pages are skipped and stale ones removed
 export    PDF via typst-pdf (slides and handout)
 player    index.html from assets/player.html with the slide data as JSON

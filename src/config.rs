@@ -53,7 +53,7 @@ impl Default for RawOutput {
             pdf: "slides.pdf".into(),
             handout: "handout.pdf".into(),
             html: "index.html".into(),
-            images: ImageFormat::Svg,
+            images: ImageFormat::Auto,
             ppi: 216.0,
             jpeg_quality: 92,
         }
@@ -88,6 +88,10 @@ impl Default for RawPlayer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ImageFormat {
+    /// SVG for pages that are pure text and vector graphics, JPEG for pages that contain an
+    /// image. Browsers decode images nested inside an SVG `<img>` lazily: such a slide can
+    /// appear with blank or blurry pictures until something forces a repaint.
+    Auto,
     /// Vector, sharp at any size; `ppi` and `jpeg-quality` are ignored.
     Svg,
     /// Rasterised at `ppi`.
@@ -300,7 +304,7 @@ mod tests {
         assert_eq!(c.pdf, Some(dir.path().join("dist/slides.pdf")));
         assert_eq!(c.handout, Some(dir.path().join("dist/handout.pdf")));
         assert_eq!(c.html, Some(dir.path().join("dist/index.html")));
-        assert_eq!(c.images, ImageFormat::Svg);
+        assert_eq!(c.images, ImageFormat::Auto);
         assert_eq!(c.ppi, 216.0);
         assert_eq!(c.jpeg_quality, 92);
         assert!(!c.system_fonts);

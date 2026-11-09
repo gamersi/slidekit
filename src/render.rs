@@ -26,6 +26,9 @@ pub struct Stats {
     pub removed: usize,
 }
 
+/// A page's image format, plus its SVG if that was already encoded while deciding.
+type Resolved = (ImageFormat, Option<String>);
+
 /// Renders all pages into `dir` and returns the file name for each page.
 pub fn render(
     doc: &PagedDocument,
@@ -35,35 +38,73 @@ pub fn render(
     quality: u8,
 ) -> Result<(Vec<String>, Stats)> {
     std::fs::create_dir_all(dir).with_context(|| format!("cannot create {}", dir.display()))?;
+    // `Auto` decides from the SVG itself: anything typst-svg embeds as `<image>` (pictures,
+    // bitmap emoji, image tilings) is decoded lazily by browsers, so such pages become JPEG.
+    // The SVG of the other pages is kept and written below instead of encoding it twice.
+    let resolved: Vec<Resolved> = doc
+        .pages()
+        .par_iter()
+        .map(|page| match format {
+            ImageFormat::Auto if has_image(&page.frame) => (ImageFormat::Jpeg, None),
+            ImageFormat::Auto => {
+                let svg = encode_svg(page);
+                if svg.contains("<image") {
+                    (ImageFormat::Jpeg, None)
+                } else {
+                    (ImageFormat::Svg, Some(svg))
+                }
+            }
+            other => (other, None),
+        })
+        .collect();
+    let formats: Vec<ImageFormat> = resolved.iter().map(|(f, _)| *f).collect();
     let names: Vec<String> = doc
         .pages()
         .iter()
-        .map(|page| file_name(page, format, ppi, quality))
+        .zip(&formats)
+        .map(|(page, &format)| file_name(page, format, ppi, quality))
         .collect();
 
-    let results: Vec<Result<bool>> = doc
+    // Identical pages (e.g. a build step that changes nothing visible) share a file name;
+    // render each name once, or two workers would race on the same temp file.
+    let mut seen = HashSet::new();
+    let jobs: Vec<(&Page, &String, &Resolved)> = doc
         .pages()
-        .par_iter()
+        .iter()
         .zip(&names)
-        .map(|(page, name)| {
+        .zip(&resolved)
+        .filter(|((_, name), _)| seen.insert(name.as_str()))
+        .map(|((page, name), resolved)| (page, name, resolved))
+        .collect();
+    let duplicates = names.len() - jobs.len();
+
+    let results: Vec<Result<bool>> = jobs
+        .into_par_iter()
+        .map(|(page, name, (format, svg))| {
             let path = dir.join(name);
             if path.exists() {
                 return Ok(false);
             }
             let bytes = match format {
-                ImageFormat::Svg => encode_svg(page).into_bytes(),
+                ImageFormat::Svg => svg.clone().unwrap_or_else(|| encode_svg(page)).into_bytes(),
                 ImageFormat::Jpeg => encode(page, ppi, quality)?,
+                ImageFormat::Auto => unreachable!("resolved per page above"),
             };
             // Write next to the target and rename, so a server never sees half a file.
             let tmp = dir.join(format!("{name}.tmp"));
             std::fs::write(&tmp, bytes)
                 .with_context(|| format!("cannot write {}", tmp.display()))?;
-            std::fs::rename(&tmp, &path)?;
+            std::fs::rename(&tmp, &path).with_context(|| {
+                format!("cannot rename {} to {}", tmp.display(), path.display())
+            })?;
             Ok(true)
         })
         .collect();
 
-    let mut stats = Stats::default();
+    let mut stats = Stats {
+        reused: duplicates,
+        ..Stats::default()
+    };
     for result in results {
         if result? {
             stats.rendered += 1;
@@ -80,7 +121,8 @@ pub fn render(
         let base = name.strip_suffix(".tmp").unwrap_or(&name);
         let ours = base.ends_with(".jpg") || base.ends_with(".svg");
         if ours && !keep.contains(name.as_ref()) {
-            std::fs::remove_file(entry.path())?;
+            std::fs::remove_file(entry.path())
+                .with_context(|| format!("cannot remove {}", entry.path().display()))?;
             stats.removed += 1;
         }
     }
@@ -92,7 +134,7 @@ fn file_name(page: &Page, format: ImageFormat, ppi: f32, quality: u8) -> String 
     // ppi and quality only matter for JPEG; leave them out for SVG so changing them
     // doesn't re-render anything.
     let (settings, ext) = match format {
-        ImageFormat::Svg => (None, "svg"),
+        ImageFormat::Svg | ImageFormat::Auto => (None, "svg"),
         ImageFormat::Jpeg => (Some((ppi.to_bits(), quality)), "jpg"),
     };
     let hash = hash128(&(
@@ -103,6 +145,15 @@ fn file_name(page: &Page, format: ImageFormat, ppi: f32, quality: u8) -> String 
         env!("CARGO_PKG_VERSION"),
     ));
     format!("{hash:032x}.{ext}")
+}
+
+/// Whether a frame contains an image (raster or SVG) anywhere.
+fn has_image(frame: &Frame) -> bool {
+    frame.items().any(|(_, item)| match item {
+        FrameItem::Image(..) => true,
+        FrameItem::Group(group) => has_image(&group.frame),
+        _ => false,
+    })
 }
 
 /// Hashes only what is visible in a frame. The derived `Hash` of a frame also covers spans,
@@ -173,4 +224,60 @@ pub fn encode(page: &Page, ppi: f32, quality: u8) -> Result<Vec<u8>> {
     encoder.set_sampling_factor(jpeg_encoder::SamplingFactor::R_4_4_4);
     encoder.encode(&rgb, w16, h16, jpeg_encoder::ColorType::Rgb)?;
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::world::{Mode, Session};
+
+    #[test]
+    fn auto_uses_jpeg_only_for_pages_with_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut px = tiny_skia::Pixmap::new(4, 4).unwrap();
+        px.fill(tiny_skia::Color::from_rgba8(200, 30, 40, 255));
+        px.save_png(dir.path().join("photo.png")).unwrap();
+        std::fs::write(
+            dir.path().join("main.typ"),
+            "#set page(width: 200pt, height: 100pt)\nText only\n#pagebreak()\n#box(image(\"photo.png\", width: 50pt))\n#pagebreak()\n#rect(width: 40pt, height: 40pt, fill: tiling(size: (8pt, 8pt), image(\"photo.png\", width: 8pt)))",
+        )
+        .unwrap();
+        let config = Config::parse("[deck]\nentry = \"main.typ\"", dir.path()).unwrap();
+        let session = Session::new(&config).unwrap();
+        let doc = crate::compile::compile(&session.world(Mode::Slides))
+            .unwrap()
+            .doc;
+        let out = dir.path().join("slides");
+        let (names, stats) = render(&doc, &out, ImageFormat::Auto, 72.0, 90).unwrap();
+        assert!(
+            names[0].ends_with(".svg") && names[1].ends_with(".jpg"),
+            "{names:?}"
+        );
+        assert_eq!(stats.rendered, 3);
+        assert!(
+            std::fs::read(out.join(&names[1]))
+                .unwrap()
+                .starts_with(&[0xFF, 0xD8])
+        );
+    }
+
+    #[test]
+    fn identical_pages_render_once() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("main.typ"),
+            "#set page(width: 200pt, height: 100pt)\n#for _ in range(16) { page[Same] }",
+        )
+        .unwrap();
+        let config = Config::parse("[deck]\nentry = \"main.typ\"", dir.path()).unwrap();
+        let session = Session::new(&config).unwrap();
+        let doc = crate::compile::compile(&session.world(Mode::Slides))
+            .unwrap()
+            .doc;
+        let (names, stats) =
+            render(&doc, &dir.path().join("slides"), ImageFormat::Svg, 72.0, 90).unwrap();
+        assert!(names.iter().all(|n| *n == names[0]));
+        assert_eq!((stats.rendered, stats.reused), (1, 15));
+    }
 }
